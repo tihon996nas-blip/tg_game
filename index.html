@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Осенний Шкаф - Найди промокод</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #8B4513 0%, #D2691E 50%, #CD853F 100%);
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        #game-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        /* Header: always on top, horizontally centered, no overlap with close btn */
+        #header {
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 10;
+            background: rgba(255, 248, 240, 0.95);
+            padding: 10px 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            max-width: calc(100vw - 100px);
+            white-space: nowrap;
+        }
+
+        #header h1 {
+            font-size: clamp(14px, 4vw, 20px);
+            color: #8B4513;
+            margin-bottom: 2px;
+            font-weight: 700;
+        }
+
+        #attempts {
+            font-size: clamp(13px, 3.5vw, 16px);
+            color: #A0522D;
+            font-weight: 600;
+        }
+
+        .attempts-left {
+            color: #DC143C;
+            font-weight: 700;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        /* Close button: fixed top-right, large hit area for mobile */
+        .close-btn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(139, 69, 19, 0.9);
+            color: white;
+            border: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .close-btn:active {
+            background: rgba(100, 40, 10, 0.95);
+            transform: scale(0.95);
+        }
+
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .overlay-content {
+            background: linear-gradient(135deg, #FFF8DC 0%, #FAEBD7 100%);
+            padding: 32px 24px;
+            border-radius: 24px;
+            text-align: center;
+            width: min(90vw, 380px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        .overlay-content h2 {
+            font-size: clamp(20px, 5vw, 28px);
+            color: #8B4513;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+
+        .promo-code {
+            font-size: clamp(24px, 7vw, 36px);
+            color: #DC143C;
+            background: #FFF;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            margin: 16px 0;
+            border: 3px dashed #DAA520;
+            box-shadow: 0 4px 16px rgba(218, 165, 32, 0.3);
+        }
+
+        .item-display {
+            font-size: clamp(56px, 15vw, 80px);
+            margin: 12px 0;
+            animation: bounce 0.6s ease;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+
+        .item-name {
+            font-size: clamp(15px, 4vw, 18px);
+            color: #A0522D;
+            margin-top: 8px;
+            font-weight: 600;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+
+        button.game-btn {
+            background: linear-gradient(135deg, #DAA520 0%, #B8860B 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            font-size: clamp(15px, 4vw, 18px);
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 700;
+            box-shadow: 0 4px 12px rgba(218, 165, 32, 0.4);
+            transition: all 0.2s ease;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            min-width: 120px;
+        }
+
+        button.game-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(218, 165, 32, 0.6);
+        }
+
+        button.game-btn:active {
+            transform: translateY(0) scale(0.97);
+        }
+
+        button.game-btn.secondary {
+            background: linear-gradient(135deg, #A0522D 0%, #8B4513 100%);
+            box-shadow: 0 4px 12px rgba(139, 69, 19, 0.4);
+        }
+
+        .instruction {
+            font-size: clamp(12px, 3vw, 14px);
+            color: #8B4513;
+            margin-top: 8px;
+            opacity: 0.8;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #FFF8DC;
+            font-size: 18px;
+            font-weight: 600;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <button class="close-btn" id="close-btn">✕</button>
+
+        <div id="header">
+            <h1>🍂 Найди промокод</h1>
+            <div id="attempts">Попыток осталось: <span class="attempts-left">3</span></div>
+        </div>
+
+        <div id="loading">Загрузка...</div>
+
+        <div id="canvas-container"></div>
+
+        <div id="overlay">
+            <div class="overlay-content">
+                <div id="overlay-message"></div>
+                <div class="btn-row" id="overlay-buttons"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Init Telegram WebApp — expand but do NOT requestWriteAccess or requestContact
+        const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+        if (tg) {
+            // Do NOT call tg.expand() — keeps the game as a sheet over TG interface on mobile
+            tg.ready();
+            if (tg.BackButton) tg.BackButton.hide();
+        }
+
+        // Close button: use tg.close() if available, otherwise window.close()
+        document.getElementById('close-btn').addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (tg && tg.close) {
+                tg.close();
+            } else {
+                window.close();
+            }
+        });
+
+        let scene, camera, renderer, raycaster;
+        let cabinets = [];
+        let attemptsLeft = 3;
+        let gameOver = false;
+        let shuffledItems = [];
+
+        const items = [
+            { emoji: '🕯️', name: 'Свечка' },
+            { emoji: '📚', name: 'Книга' },
+            { emoji: '🧶', name: 'Свитер' },
+            { emoji: '🧢', name: 'Шапка' },
+            { emoji: '☂️', name: 'Зонтик' },
+            { emoji: '🥾', name: 'Сапоги' },
+            { emoji: '🎧', name: 'Наушники' },
+            { emoji: '🛋️', name: 'Лампа' },
+            { emoji: '📜', name: 'Промокод', isPromo: true }
+        ];
+
+        function shuffleArray(array) {
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x8B4513);
+
+            // Responsive camera FOV based on aspect ratio
+            const aspect = window.innerWidth / window.innerHeight;
+            const fov = aspect < 0.75 ? 75 : 60; // wider FOV on portrait mobile
+            camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 1000);
+
+            // Pull camera back more on mobile portrait
+            const camZ = aspect < 0.75 ? 10.5 : 8;
+            camera.position.set(0, 0, camZ);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xfff8dc, 0.6);
+            directionalLight.position.set(5, 10, 5);
+            scene.add(directionalLight);
+
+            raycaster = new THREE.Raycaster();
+
+            createCabinet();
+
+            document.getElementById('loading').style.display = 'none';
+
+            // Use both click and touchend for reliable mobile hit detection
+            renderer.domElement.addEventListener('click', onCanvasInteract, false);
+            renderer.domElement.addEventListener('touchend', onTouchEnd, { passive: false });
+            window.addEventListener('resize', onWindowResize, false);
+
+            animate();
+        }
+
+        function createCabinet() {
+            shuffledItems = shuffleArray(items);
+            cabinets = [];
+
+            // Remove old group if exists
+            const old = scene.getObjectByName('cabinetGroup');
+            if (old) scene.remove(old);
+
+            const cabinetGroup = new THREE.Group();
+            cabinetGroup.name = 'cabinetGroup';
+
+            const frameGeometry = new THREE.BoxGeometry(8, 6, 0.3);
+            const frameMaterial = new THREE.MeshPhongMaterial({ color: 0x654321 });
+            const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+            frame.position.z = -0.5;
+            cabinetGroup.add(frame);
+
+            const cellWidth = 2.4;
+            const cellHeight = 1.8;
+            const cols = 3;
+            const rows = 3;
+            const gap = 0.15;
+
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    const index = row * cols + col;
+
+                    const x = (col - 1) * (cellWidth + gap);
+                    const y = (1 - row) * (cellHeight + gap);
+
+                    // Cell background
+                    const colors = [0xDAA520, 0xCD853F, 0xD2691E, 0xB8860B, 0xA0522D, 0xC19A6B];
+                    const cellColor = colors[index % colors.length];
+                    const cellGeometry = new THREE.BoxGeometry(cellWidth - 0.1, cellHeight - 0.1, 0.1);
+                    const cellMaterial = new THREE.MeshPhongMaterial({ color: cellColor });
+                    const cell = new THREE.Mesh(cellGeometry, cellMaterial);
+                    cell.position.set(x, y, -0.15);
+                    cabinetGroup.add(cell);
+
+                    // Door
+                    const doorGeometry = new THREE.BoxGeometry(cellWidth - 0.1, cellHeight - 0.1, 0.12);
+                    const doorColor = colors[(index + 2) % colors.length];
+                    const doorMaterial = new THREE.MeshPhongMaterial({ color: doorColor });
+                    const door = new THREE.Mesh(doorGeometry, doorMaterial);
+
+                    door.position.set(x, y, 0.06);
+                    door.userData = {
+                        opened: false,
+                        item: shuffledItems[index],
+                        originalX: x,
+                        originalY: y
+                    };
+
+                    // Handle
+                    const handleGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8);
+                    const handleMaterial = new THREE.MeshPhongMaterial({ color: 0xFFD700 });
+                    const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+                    handle.rotation.z = Math.PI / 2;
+                    handle.position.set(cellWidth * 0.3, 0, 0.15);
+                    door.add(handle);
+
+                    cabinetGroup.add(door);
+                    cabinets.push(door);
+                }
+            }
+
+            scene.add(cabinetGroup);
+        }
+
+        // Shared hit-test logic using NDC coords
+        function hitTest(ndcX, ndcY) {
+            if (gameOver) return;
+
+            const mouse = new THREE.Vector2(ndcX, ndcY);
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(cabinets, true);
+
+            if (intersects.length > 0) {
+                // Walk up to find the root door mesh in cabinets array
+                let obj = intersects[0].object;
+                while (obj.parent && !cabinets.includes(obj)) {
+                    obj = obj.parent;
+                }
+                if (cabinets.includes(obj) && !obj.userData.opened) {
+                    openDoor(obj);
+                }
+            }
+        }
+
+        function onCanvasInteract(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            const ndcX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            const ndcY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            hitTest(ndcX, ndcY);
+        }
+
+        function onTouchEnd(event) {
+            event.preventDefault();
+            if (event.changedTouches.length === 0) return;
+            const touch = event.changedTouches[0];
+            const rect = renderer.domElement.getBoundingClientRect();
+            const ndcX = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
+            const ndcY = -((touch.clientY - rect.top) / rect.height) * 2 + 1;
+            hitTest(ndcX, ndcY);
+        }
+
+        function openDoor(door) {
+            door.userData.opened = true;
+            attemptsLeft--;
+            updateAttempts();
+
+            const targetRotation = -Math.PI / 2;
+            const duration = 600;
+            const startRotation = door.rotation.y;
+            const startTime = Date.now();
+
+            function animateDoor() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const easeProgress = 1 - Math.pow(1 - progress, 3);
+                door.rotation.y = startRotation + (targetRotation - startRotation) * easeProgress;
+                if (progress < 1) {
+                    requestAnimationFrame(animateDoor);
+                } else {
+                    checkResult(door);
+                }
+            }
+
+            animateDoor();
+        }
+
+        function checkResult(door) {
+            const item = door.userData.item;
+            if (item.isPromo) {
+                gameOver = true;
+                showWin();
+            } else {
+                showItem(item);
+                if (attemptsLeft === 0) {
+                    gameOver = true;
+                    setTimeout(showLose, 1500);
+                }
+            }
+        }
+
+        function showItem(item) {
+            const overlay = document.getElementById('overlay');
+            const message = document.getElementById('overlay-message');
+            const btns = document.getElementById('overlay-buttons');
+
+            message.innerHTML = `
+                <div class="item-display">${item.emoji}</div>
+                <div class="item-name">${item.name}</div>
+                <p class="instruction">Попробуйте другую ячейку</p>
+            `;
+            btns.innerHTML = '';
+            overlay.style.display = 'flex';
+
+            setTimeout(() => {
+                overlay.style.display = 'none';
+            }, 1500);
+        }
+
+        function showWin() {
+            confetti({
+                particleCount: 150,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#DAA520', '#DC143C', '#FF8C00', '#8B4513']
+            });
+
+            const overlay = document.getElementById('overlay');
+            const message = document.getElementById('overlay-message');
+            const btns = document.getElementById('overlay-buttons');
+
+            message.innerHTML = `
+                <h2>🎉 Поздравляем!</h2>
+                <div class="promo-code">autumn26</div>
+                <p class="instruction">Используйте этот промокод для скидки!</p>
+            `;
+
+            btns.innerHTML = '';
+
+            const replayBtn = document.createElement('button');
+            replayBtn.className = 'game-btn';
+            replayBtn.textContent = 'Играть снова';
+            replayBtn.addEventListener('click', resetGame);
+
+            const exitBtn = document.createElement('button');
+            exitBtn.className = 'game-btn secondary';
+            exitBtn.textContent = 'Выйти';
+            exitBtn.addEventListener('click', function() {
+                if (tg && tg.close) {
+                    tg.close();
+                } else {
+                    window.close();
+                }
+            });
+
+            btns.appendChild(replayBtn);
+            btns.appendChild(exitBtn);
+            overlay.style.display = 'flex';
+        }
+
+        function showLose() {
+            const overlay = document.getElementById('overlay');
+            const message = document.getElementById('overlay-message');
+            const btns = document.getElementById('overlay-buttons');
+
+            message.innerHTML = `
+                <h2>😔 Не получилось</h2>
+                <p style="font-size: clamp(14px,4vw,18px); color: #8B4513; margin: 12px 0;">Попытки закончились</p>
+                <p class="instruction">Попробуйте ещё раз!</p>
+            `;
+
+            btns.innerHTML = '';
+
+            const replayBtn = document.createElement('button');
+            replayBtn.className = 'game-btn';
+            replayBtn.textContent = 'Играть снова';
+            replayBtn.addEventListener('click', resetGame);
+
+            const exitBtn = document.createElement('button');
+            exitBtn.className = 'game-btn secondary';
+            exitBtn.textContent = 'Выйти';
+            exitBtn.addEventListener('click', function() {
+                if (tg && tg.close) {
+                    tg.close();
+                } else {
+                    window.close();
+                }
+            });
+
+            btns.appendChild(replayBtn);
+            btns.appendChild(exitBtn);
+            overlay.style.display = 'flex';
+        }
+
+        function updateAttempts() {
+            document.querySelector('.attempts-left').textContent = attemptsLeft;
+        }
+
+        function resetGame() {
+            document.getElementById('overlay').style.display = 'none';
+            attemptsLeft = 3;
+            gameOver = false;
+            updateAttempts();
+            createCabinet();
+        }
+
+        function onWindowResize() {
+            const aspect = window.innerWidth / window.innerHeight;
+            camera.fov = aspect < 0.75 ? 75 : 60;
+            camera.aspect = aspect;
+            camera.position.z = aspect < 0.75 ? 10.5 : 8;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>
